@@ -1,8 +1,5 @@
 node_modules/
 database/database.db
-
 config.json
-
 .env
-
 *.log

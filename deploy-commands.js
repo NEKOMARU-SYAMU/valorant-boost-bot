@@ -1,53 +1,51 @@
-const { REST, Routes } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
+
+const {
+    REST,
+    Routes
+} = require("discord.js");
+
 const config = require("./config.json");
 
 const commands = [];
 
-const commandFolders = path.join(__dirname, "commands");
-const folders = fs.readdirSync(commandFolders);
+const commandsPath = path.join(__dirname, "commands");
+const folders = fs.readdirSync(commandsPath);
 
 for (const folder of folders) {
+    const folderPath = path.join(commandsPath, folder);
 
-    const folderPath = path.join(commandFolders, folder);
+    if (!fs.statSync(folderPath).isDirectory()) continue;
 
     const commandFiles = fs.readdirSync(folderPath).filter(file => file.endsWith(".js"));
 
     for (const file of commandFiles) {
+        const filePath = path.join(folderPath, file);
+        const command = require(filePath);
 
-        const command = require(path.join(folderPath, file));
-
-        commands.push(command.data.toJSON());
-
+        if ("data" in command && "execute" in command) {
+            commands.push(command.data.toJSON());
+        }
     }
-
 }
 
 const rest = new REST({ version: "10" }).setToken(config.token);
 
 (async () => {
-
     try {
-
-        console.log("コマンド登録中...");
+        console.log("グローバルコマンド登録中...");
 
         await rest.put(
-            Routes.applicationGuildCommands(
-                config.clientId,
-                config.guildId
-            ),
+            Routes.applicationCommands(config.clientId),
             {
                 body: commands
             }
         );
 
-        console.log("コマンド登録完了！");
-
+        console.log("グローバルコマンド登録完了！");
+        console.log(`登録数：${commands.length}`);
     } catch (error) {
-
         console.error(error);
-
     }
-
 })();
