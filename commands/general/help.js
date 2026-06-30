@@ -7,63 +7,61 @@ module.exports = {
 
     async execute(interaction) {
         const embed = new EmbedBuilder()
-            .setColor(0x5865f2)
-            .setTitle("📘 VALORANT BOOST BOT HELP")
-            .setDescription("このBotで使えるコマンド一覧です。")
+            .setColor(0xE63946)
+            .setTitle("📘 VALORANT MANAGER 使い方")
+            .setDescription("VALORANTランク・RR・サブ垢を管理するBotです。")
             .addFields(
                 {
-                    name: "👤【プロフィール】",
+                    name: "👤 登録",
                     value:
-`</register:0> プロフィール登録
-</profile:0> 自分のプロフィール表示
-</update:0> プロフィール編集
-</delete:0> プロフィール削除
-</search:0> 指定ユーザーを検索`,
+"`/register`\n自分のプロフィールを登録します。\n\n`/register user:@ユーザー`\n管理者が他人のプロフィールを登録します。",
                     inline: false
                 },
                 {
-                    name: "📈【RR・履歴】",
+                    name: "✏️ 更新",
                     value:
-`</rr:0> RRをフォームで更新
-</undo:0> 直前の更新を取り消し
-</history:0> RR更新履歴を表示
-</weekly:0> 今週のRRランキング`,
+"`/update`\n自分のプロフィールを更新します。\n\n`/update user:@ユーザー`\n管理者が他人のプロフィールを更新します。",
                     inline: false
                 },
                 {
-                    name: "📊【一覧・統計】",
+                    name: "📈 確認",
                     value:
-`</stats:0> サーバー統計
-</vc:0> VC内メンバー一覧
-</leaderboard:0> ランキング表示`,
+"`/rr`\n自分の現在ランク・RRを確認します。\n\n`/rr user:@ユーザー`\n指定したユーザーの情報を確認します。",
                     inline: false
                 },
                 {
-                    name: "👑【管理者】",
+                    name: "🏆 一覧",
                     value:
-`</setup:0> 公開一覧チャンネル設定
-</publish:0> メンバー一覧公開
-</setrankup:0> ランクアップ通知チャンネル設定
-</dashboard:0> 管理者ダッシュボード`,
+"`/publish`\nメンバー一覧を公開・更新します。管理者専用です。",
                     inline: false
                 },
                 {
-                    name: "⭐【RR入力例】",
+                    name: "🔔 通知設定",
                     value:
-`/rr を実行後、フォームに入力します。
-
-例：
-\`20\`
-\`-15\`
-\`＋25\`
-\`－30\`
-
-※ \`20\` は自動で \`+20\` として処理されます。`,
+"`/setnotify`\n試合結果・ランクアップ・ランクダウン・目標達成の通知チャンネルを設定します。管理者専用です。",
+                    inline: false
+                },
+                {
+                    name: "🔄 手動更新",
+                    value:
+"`/forceupdate`\n登録者全員の試合結果・ランク・RRを今すぐ確認します。管理者専用です。",
+                    inline: false
+                },
+                {
+                    name: "🧪 APIテスト",
+                    value:
+"`/apitest`\nRiot IDからHenrik APIの取得テストを行います。管理者専用です。",
+                    inline: false
+                },
+                {
+                    name: "🤖 自動更新",
+                    value:
+"登録後は1時間ごとに試合終了を検知し、ランク・RR・一覧・通知を自動更新します。",
                     inline: false
                 }
             )
             .setFooter({
-                text: "VALORANT BOOST BOT"
+                text: "VALORANT MANAGER"
             })
             .setTimestamp();
 
