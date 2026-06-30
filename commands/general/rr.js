@@ -1,32 +1,41 @@
+const { SlashCommandBuilder } = require("discord.js");
+
 const {
-    SlashCommandBuilder,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle,
-    ActionRowBuilder
-} = require("discord.js");
+    getUser,
+    getSubs
+} = require("../../database/database");
+
+const { buildProfileEmbed } = require("../../embeds/profileEmbed");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("rr")
-        .setDescription("RRをフォームで更新します"),
+        .setDescription("現在ランク・RRを確認します")
+        .addUserOption(option =>
+            option
+                .setName("user")
+                .setDescription("確認するユーザー")
+                .setRequired(false)
+        ),
 
     async execute(interaction) {
-        const modal = new ModalBuilder()
-            .setCustomId("rr_modal")
-            .setTitle("RR更新");
+        const target = interaction.options.getUser("user") || interaction.user;
 
-        const rrInput = new TextInputBuilder()
-            .setCustomId("rr_value")
-            .setLabel("RR変動")
-            .setPlaceholder("例：20 / -15 / ＋25 / －30")
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short);
+        const user = getUser(target.id);
 
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(rrInput)
-        );
+        if (!user) {
+            return interaction.reply({
+                content: "プロフィールが登録されていません。",
+                ephemeral: true
+            });
+        }
 
-        await interaction.showModal(modal);
+        const subs = getSubs(target.id);
+        const embed = buildProfileEmbed(user, subs, target);
+
+        await interaction.reply({
+            embeds: [embed],
+            ephemeral: true
+        });
     }
 };
