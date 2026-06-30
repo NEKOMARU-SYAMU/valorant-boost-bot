@@ -5,7 +5,8 @@ const {
     TextInputBuilder,
     TextInputStyle,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    PermissionFlagsBits
 } = require("discord.js");
 
 const {
@@ -22,6 +23,20 @@ const { calculateProgress } = require("../utils/progressManager");
 const { buildProfileEmbed } = require("../embeds/profileEmbed");
 const { updatePublish } = require("../utils/publishManager");
 const { getCurrentMMR, getLatestMatch } = require("../utils/valorantApi");
+
+function getTarget(interaction) {
+    const cache = interaction.client.updateTargetCache?.get(interaction.user.id);
+
+    const targetUserId = cache?.targetUserId || interaction.user.id;
+    const targetUsername = cache?.targetUsername || interaction.user.username;
+
+    if (targetUserId !== interaction.user.id) {
+        const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+        if (!isAdmin) return null;
+    }
+
+    return { targetUserId, targetUsername };
+}
 
 function rankOptions() {
     return RANKS.map(rank => ({
@@ -72,21 +87,32 @@ function buildUpdateMenu() {
     ];
 }
 
-async function sendUpdatedProfile(interaction, updatedUser, message = "✅ プロフィールを更新しました。") {
+async function sendUpdatedProfile(interaction, targetUserId, updatedUser, message = "✅ プロフィールを更新しました。") {
     await updatePublish(interaction.guild);
 
-    const subs = getSubs(interaction.user.id);
-    const embed = buildProfileEmbed(updatedUser, subs, interaction.user);
+    const subs = getSubs(targetUserId);
+    const discordUser = await interaction.client.users.fetch(targetUserId).catch(() => interaction.user);
+    const embed = buildProfileEmbed(updatedUser, subs, discordUser);
 
     return interaction.reply({
-        content: message,
+        content: `${message}\n対象：<@${targetUserId}>`,
         embeds: [embed],
         ephemeral: true
     });
 }
 
 async function handleUpdateButton(interaction) {
-    const user = getUser(interaction.user.id);
+    const target = getTarget(interaction);
+
+    if (!target) {
+        return interaction.reply({
+            content: "⚠️ 他人のプロフィールを更新できるのは管理者のみです。",
+            ephemeral: true
+        });
+    }
+
+    const { targetUserId } = target;
+    const user = getUser(targetUserId);
 
     if (!user) {
         return interaction.reply({
@@ -129,7 +155,7 @@ async function handleUpdateButton(interaction) {
             .addOptions(rankOptions());
 
         return interaction.reply({
-            content: "🎯 **目標ランクを選択してください。**",
+            content: `🎯 **目標ランクを選択してください。**\n対象：<@${targetUserId}>`,
             components: [new ActionRowBuilder().addComponents(menu)],
             ephemeral: true
         });
@@ -164,14 +190,13 @@ async function handleUpdateButton(interaction) {
             .addOptions(amountOptions());
 
         interaction.client.updateCache ??= new Map();
-
         interaction.client.updateCache.set(interaction.user.id, {
             subRank: null,
             subAmount: null
         });
 
         return interaction.reply({
-            content: "📦 **追加するサブ垢のランクと保持数を選択してください。**",
+            content: `📦 **追加するサブ垢のランクと保持数を選択してください。**\n対象：<@${targetUserId}>`,
             components: [
                 new ActionRowBuilder().addComponents(rankMenu),
                 new ActionRowBuilder().addComponents(amountMenu),
@@ -188,7 +213,7 @@ async function handleUpdateButton(interaction) {
     }
 
     if (interaction.customId === "update_sub_remove") {
-        const subs = getSubs(interaction.user.id);
+        const subs = getSubs(targetUserId);
 
         if (!subs.length) {
             return interaction.reply({
@@ -208,7 +233,7 @@ async function handleUpdateButton(interaction) {
             );
 
         return interaction.reply({
-            content: "🗑️ **削除するサブ垢を選択してください。**",
+            content: `🗑️ **削除するサブ垢を選択してください。**\n対象：<@${targetUserId}>`,
             components: [new ActionRowBuilder().addComponents(menu)],
             ephemeral: true
         });
@@ -224,18 +249,17 @@ async function handleUpdateButton(interaction) {
             });
         }
 
-        saveUndo(interaction.user.id, {
+        saveUndo(targetUserId, {
             user,
-            subs: getSubs(interaction.user.id)
+            subs: getSubs(targetUserId)
         });
 
-        addSub(interaction.user.id, cache.subRank, cache.subAmount);
-
+        addSub(targetUserId, cache.subRank, cache.subAmount);
         interaction.client.updateCache.delete(interaction.user.id);
 
         const updatedUser = {
             ...user,
-            username: interaction.user.username,
+            username: user.username,
             updatedAt: new Date().toLocaleString("ja-JP")
         };
 
@@ -243,6 +267,7 @@ async function handleUpdateButton(interaction) {
 
         return sendUpdatedProfile(
             interaction,
+            targetUserId,
             updatedUser,
             `✅ サブ垢を追加しました。\n${getRankText(cache.subRank)} ×${cache.subAmount}`
         );
@@ -250,7 +275,17 @@ async function handleUpdateButton(interaction) {
 }
 
 async function handleUpdateSelectMenu(interaction) {
-    const user = getUser(interaction.user.id);
+    const target = getTarget(interaction);
+
+    if (!target) {
+        return interaction.reply({
+            content: "⚠️ 他人のプロフィールを更新できるのは管理者のみです。",
+            ephemeral: true
+        });
+    }
+
+    const { targetUserId } = target;
+    const user = getUser(targetUserId);
 
     if (!user) {
         return interaction.reply({
@@ -288,33 +323,33 @@ async function handleUpdateSelectMenu(interaction) {
     }
 
     if (interaction.customId === "update_sub_remove_select") {
-        saveUndo(interaction.user.id, {
+        saveUndo(targetUserId, {
             user,
-            subs: getSubs(interaction.user.id)
+            subs: getSubs(targetUserId)
         });
 
         removeSub(Number(interaction.values[0]));
 
         const updatedUser = {
             ...user,
-            username: interaction.user.username,
+            username: user.username,
             updatedAt: new Date().toLocaleString("ja-JP")
         };
 
         saveUser(updatedUser);
 
-        return sendUpdatedProfile(interaction, updatedUser, "🗑️ サブ垢を削除しました。");
+        return sendUpdatedProfile(interaction, targetUserId, updatedUser, "🗑️ サブ垢を削除しました。");
     }
 
     if (interaction.customId === "update_target_rank") {
-        saveUndo(interaction.user.id, {
+        saveUndo(targetUserId, {
             user,
-            subs: getSubs(interaction.user.id)
+            subs: getSubs(targetUserId)
         });
 
         const updatedUser = {
             ...user,
-            username: interaction.user.username,
+            username: user.username,
             targetRank: Number(interaction.values[0]),
             updatedAt: new Date().toLocaleString("ja-JP")
         };
@@ -329,12 +364,22 @@ async function handleUpdateSelectMenu(interaction) {
 
         saveUser(updatedUser);
 
-        return sendUpdatedProfile(interaction, updatedUser);
+        return sendUpdatedProfile(interaction, targetUserId, updatedUser);
     }
 }
 
 async function handleUpdateModal(interaction) {
-    const user = getUser(interaction.user.id);
+    const target = getTarget(interaction);
+
+    if (!target) {
+        return interaction.reply({
+            content: "⚠️ 他人のプロフィールを更新できるのは管理者のみです。",
+            ephemeral: true
+        });
+    }
+
+    const { targetUserId } = target;
+    const user = getUser(targetUserId);
 
     if (!user) {
         return interaction.reply({
@@ -344,23 +389,23 @@ async function handleUpdateModal(interaction) {
     }
 
     if (interaction.customId === "update_comment_modal") {
-        saveUndo(interaction.user.id, {
+        saveUndo(targetUserId, {
             user,
-            subs: getSubs(interaction.user.id)
+            subs: getSubs(targetUserId)
         });
 
         const comment = interaction.fields.getTextInputValue("comment") || "";
 
         const updatedUser = {
             ...user,
-            username: interaction.user.username,
+            username: user.username,
             comment,
             updatedAt: new Date().toLocaleString("ja-JP")
         };
 
         saveUser(updatedUser);
 
-        return sendUpdatedProfile(interaction, updatedUser, "✅ コメントを更新しました。");
+        return sendUpdatedProfile(interaction, targetUserId, updatedUser, "✅ コメントを更新しました。");
     }
 
     if (interaction.customId === "update_riot_modal") {
@@ -384,9 +429,9 @@ async function handleUpdateModal(interaction) {
                 unrated = true;
             }
 
-            saveUndo(interaction.user.id, {
+            saveUndo(targetUserId, {
                 user,
-                subs: getSubs(interaction.user.id)
+                subs: getSubs(targetUserId)
             });
 
             const now = new Date().toLocaleString("ja-JP");
@@ -394,7 +439,7 @@ async function handleUpdateModal(interaction) {
 
             const updatedUser = {
                 ...user,
-                username: interaction.user.username,
+                username: user.username,
                 riotName,
                 riotTag,
                 region,
@@ -418,12 +463,14 @@ async function handleUpdateModal(interaction) {
             saveUser(updatedUser);
             await updatePublish(interaction.guild);
 
-            const subs = getSubs(interaction.user.id);
-            const embed = buildProfileEmbed(updatedUser, subs, interaction.user);
+            const subs = getSubs(targetUserId);
+            const discordUser = await interaction.client.users.fetch(targetUserId).catch(() => interaction.user);
+            const embed = buildProfileEmbed(updatedUser, subs, discordUser);
 
             return interaction.editReply({
                 content:
 `✅ Riotアカウントを変更しました。
+対象：<@${targetUserId}>
 
 🎮 Riot ID：**${riotName}#${riotTag}**
 📈 現在ランク：**${getRankText(rankId)}**
