@@ -16,25 +16,49 @@ function calcDiffRR(oldRank, oldRR, newRank, newRR) {
     return ((newRank - oldRank) * 100 + newRR) - oldRR;
 }
 
-async function notifyRankChange(client, guild, oldUser, updatedUser, diffRR) {
-    const settings = getSettings(guild.id);
-    if (!settings?.rankUpChannel) return;
+function formatDiffRR(diffRR) {
+    if (diffRR > 0) return `+${diffRR}RR`;
+    if (diffRR < 0) return `${diffRR}RR`;
+    return "±0RR";
+}
 
-    const channel = await guild.channels.fetch(settings.rankUpChannel).catch(() => null);
+async function sendNotify(guild, channelId, content) {
+    if (!channelId) return;
+
+    const channel = await guild.channels.fetch(channelId).catch(() => null);
     if (!channel) return;
+
+    await channel.send({ content }).catch(console.error);
+}
+
+async function sendNotifications(guild, oldUser, updatedUser, diffRR) {
+    const settings = getSettings(guild.id);
+    if (!settings) return;
 
     const oldRankText = getRankText(oldUser.currentRank);
     const newRankText = getRankText(updatedUser.currentRank);
+    const diffText = formatDiffRR(diffRR);
 
-    let title = "⚔️ 試合結果更新";
-    if (updatedUser.currentRank > oldUser.currentRank) title = "🎉 ランクアップ！";
-    if (updatedUser.currentRank < oldUser.currentRank) title = "📉 ランクダウン";
+    const matchText =
+`⚔️ 試合結果更新
 
-    const diffText = diffRR > 0 ? `+${diffRR}RR` : `${diffRR}RR`;
+<@${updatedUser.userId}>
 
-    await channel.send({
-        content:
-`${title}
+${newRankText} ${updatedUser.rr}RR
+${diffText}
+
+⚔️ 最新試合
+${updatedUser.lastMatchResult || "未取得"}
+🗺️ ${updatedUser.lastMatchMap || "不明"}
+🏆 ${updatedUser.lastMatchScore || "不明"}`;
+
+    await sendNotify(guild, settings.matchResultChannel, matchText);
+
+    if (updatedUser.currentRank > oldUser.currentRank) {
+        await sendNotify(
+            guild,
+            settings.rankUpChannel,
+`🎉 ランクアップ！
 
 <@${updatedUser.userId}>
 
@@ -42,13 +66,40 @@ ${oldRankText} ${oldUser.rr}RR
 ↓
 ${newRankText} ${updatedUser.rr}RR
 
-${diffText}
+${diffText}`
+        );
+    }
 
-⚔️ 最新試合
-${updatedUser.lastMatchResult || "未取得"}
-🗺️ ${updatedUser.lastMatchMap || "不明"}
-🏆 ${updatedUser.lastMatchScore || "不明"}`
-    });
+    if (updatedUser.currentRank < oldUser.currentRank) {
+        await sendNotify(
+            guild,
+            settings.rankDownChannel,
+`📉 ランクダウン
+
+<@${updatedUser.userId}>
+
+${oldRankText} ${oldUser.rr}RR
+↓
+${newRankText} ${updatedUser.rr}RR
+
+${diffText}`
+        );
+    }
+
+    const wasBelowTarget = oldUser.currentRank < oldUser.targetRank;
+    const nowReachedTarget = updatedUser.currentRank >= updatedUser.targetRank;
+
+    if (wasBelowTarget && nowReachedTarget) {
+        await sendNotify(
+            guild,
+            settings.targetAchievedChannel,
+`🎯 目標ランク達成！
+
+<@${updatedUser.userId}> さんが
+${getRankText(updatedUser.targetRank)}
+に到達しました！`
+        );
+    }
 }
 
 async function updateOneUser(client, guild, user) {
@@ -118,7 +169,7 @@ async function updateOneUser(client, guild, user) {
             createdAtMs: Date.now()
         });
 
-        await notifyRankChange(client, guild, user, updatedUser, diffRR);
+        await sendNotifications(guild, user, updatedUser, diffRR);
 
         return { checked: true, updated: true };
     } catch (error) {

@@ -16,19 +16,28 @@ function saveSettings(guildId, data) {
             guildId,
             publishChannel,
             publishMessage,
-            rankUpChannel
+            rankUpChannel,
+            matchResultChannel,
+            rankDownChannel,
+            targetAchievedChannel
         )
         VALUES (
             @guildId,
             @publishChannel,
             @publishMessage,
-            @rankUpChannel
+            @rankUpChannel,
+            @matchResultChannel,
+            @rankDownChannel,
+            @targetAchievedChannel
         )
     `).run({
         guildId,
         publishChannel: data.publishChannel ?? current?.publishChannel ?? null,
         publishMessage: data.publishMessage ?? current?.publishMessage ?? null,
-        rankUpChannel: data.rankUpChannel ?? current?.rankUpChannel ?? null
+        rankUpChannel: data.rankUpChannel ?? current?.rankUpChannel ?? null,
+        matchResultChannel: data.matchResultChannel ?? current?.matchResultChannel ?? null,
+        rankDownChannel: data.rankDownChannel ?? current?.rankDownChannel ?? null,
+        targetAchievedChannel: data.targetAchievedChannel ?? current?.targetAchievedChannel ?? null
     });
 }
 
