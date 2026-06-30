@@ -6,9 +6,16 @@ const {
 } = require("../database/database");
 
 const { getCurrentMMR, getLatestMatch } = require("./valorantApi");
-const { getRankIdByName, getRankText } = require("./rankManager");
+const { getRankIdByName } = require("./rankManager");
 const { calculateProgress } = require("./progressManager");
 const { updatePublish } = require("./publishManager");
+
+const {
+    buildMatchResultEmbed,
+    buildRankUpEmbed,
+    buildRankDownEmbed,
+    buildTargetAchievedEmbed
+} = require("../embeds/notificationEmbed");
 
 let isRunning = false;
 
@@ -16,57 +23,30 @@ function calcDiffRR(oldRank, oldRR, newRank, newRR) {
     return ((newRank - oldRank) * 100 + newRR) - oldRR;
 }
 
-function formatDiffRR(diffRR) {
-    if (diffRR > 0) return `+${diffRR}RR`;
-    if (diffRR < 0) return `${diffRR}RR`;
-    return "±0RR";
-}
-
-async function sendNotify(guild, channelId, content) {
+async function sendNotify(guild, channelId, embed) {
     if (!channelId) return;
 
     const channel = await guild.channels.fetch(channelId).catch(() => null);
     if (!channel) return;
 
-    await channel.send({ content }).catch(console.error);
+    await channel.send({ embeds: [embed] }).catch(console.error);
 }
 
 async function sendNotifications(guild, oldUser, updatedUser, diffRR) {
     const settings = getSettings(guild.id);
     if (!settings) return;
 
-    const oldRankText = getRankText(oldUser.currentRank);
-    const newRankText = getRankText(updatedUser.currentRank);
-    const diffText = formatDiffRR(diffRR);
-
-    const matchText =
-`⚔️ 試合結果更新
-
-<@${updatedUser.userId}>
-
-${newRankText} ${updatedUser.rr}RR
-${diffText}
-
-⚔️ 最新試合
-${updatedUser.lastMatchResult || "未取得"}
-🗺️ ${updatedUser.lastMatchMap || "不明"}
-🏆 ${updatedUser.lastMatchScore || "不明"}`;
-
-    await sendNotify(guild, settings.matchResultChannel, matchText);
+    await sendNotify(
+        guild,
+        settings.matchResultChannel,
+        buildMatchResultEmbed(updatedUser, diffRR)
+    );
 
     if (updatedUser.currentRank > oldUser.currentRank) {
         await sendNotify(
             guild,
             settings.rankUpChannel,
-`🎉 ランクアップ！
-
-<@${updatedUser.userId}>
-
-${oldRankText} ${oldUser.rr}RR
-↓
-${newRankText} ${updatedUser.rr}RR
-
-${diffText}`
+            buildRankUpEmbed(oldUser, updatedUser, diffRR)
         );
     }
 
@@ -74,15 +54,7 @@ ${diffText}`
         await sendNotify(
             guild,
             settings.rankDownChannel,
-`📉 ランクダウン
-
-<@${updatedUser.userId}>
-
-${oldRankText} ${oldUser.rr}RR
-↓
-${newRankText} ${updatedUser.rr}RR
-
-${diffText}`
+            buildRankDownEmbed(oldUser, updatedUser, diffRR)
         );
     }
 
@@ -93,11 +65,7 @@ ${diffText}`
         await sendNotify(
             guild,
             settings.targetAchievedChannel,
-`🎯 目標ランク達成！
-
-<@${updatedUser.userId}> さんが
-${getRankText(updatedUser.targetRank)}
-に到達しました！`
+            buildTargetAchievedEmbed(updatedUser)
         );
     }
 }
