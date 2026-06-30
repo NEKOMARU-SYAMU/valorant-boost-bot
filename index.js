@@ -65,4 +65,7 @@ if (fs.existsSync(eventsPath)) {
 
 }
 
+const { startAutoUpdate } = require("./utils/autoUpdateManager");
+startAutoUpdate(client);
+
 client.login(config.token);

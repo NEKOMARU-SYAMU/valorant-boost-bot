@@ -17,10 +17,11 @@ const {
     removeSub
 } = require("../database/database");
 
-const { RANKS, getRankText } = require("../utils/rankManager");
+const { RANKS, getRankText, getRankIdByName } = require("../utils/rankManager");
 const { calculateProgress } = require("../utils/progressManager");
 const { buildProfileEmbed } = require("../embeds/profileEmbed");
 const { updatePublish } = require("../utils/publishManager");
+const { getCurrentMMR, getLatestMatch } = require("../utils/valorantApi");
 
 function rankOptions() {
     return RANKS.map(rank => ({
@@ -41,9 +42,9 @@ function buildUpdateMenu() {
     return [
         new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-                .setCustomId("update_current")
-                .setLabel("現在ランク")
-                .setEmoji("📈")
+                .setCustomId("update_riot")
+                .setLabel("Riotアカウント")
+                .setEmoji("🎮")
                 .setStyle(ButtonStyle.Primary),
             new ButtonBuilder()
                 .setCustomId("update_target")
@@ -94,17 +95,31 @@ async function handleUpdateButton(interaction) {
         });
     }
 
-    if (interaction.customId === "update_current") {
-        const menu = new StringSelectMenuBuilder()
-            .setCustomId("update_current_rank")
-            .setPlaceholder("📈 新しい現在ランクを選択")
-            .addOptions(rankOptions());
+    if (interaction.customId === "update_riot") {
+        const modal = new ModalBuilder()
+            .setCustomId("update_riot_modal")
+            .setTitle("Riotアカウント変更");
 
-        return interaction.reply({
-            content: "📈 **現在ランクを選択してください。**",
-            components: [new ActionRowBuilder().addComponents(menu)],
-            ephemeral: true
-        });
+        const riotNameInput = new TextInputBuilder()
+            .setCustomId("riot_name")
+            .setLabel("Riot ID")
+            .setPlaceholder("例：ねこまる")
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short);
+
+        const riotTagInput = new TextInputBuilder()
+            .setCustomId("riot_tag")
+            .setLabel("Tag")
+            .setPlaceholder("例：4545")
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short);
+
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(riotNameInput),
+            new ActionRowBuilder().addComponents(riotTagInput)
+        );
+
+        return interaction.showModal(modal);
     }
 
     if (interaction.customId === "update_target") {
@@ -291,42 +306,34 @@ async function handleUpdateSelectMenu(interaction) {
         return sendUpdatedProfile(interaction, updatedUser, "🗑️ サブ垢を削除しました。");
     }
 
-    saveUndo(interaction.user.id, {
-        user,
-        subs: getSubs(interaction.user.id)
-    });
-
-    const updatedUser = { ...user };
-
-    if (interaction.customId === "update_current_rank") {
-        updatedUser.currentRank = Number(interaction.values[0]);
-        updatedUser.previousRank = user.currentRank;
-        updatedUser.previousRR = user.rr;
-        updatedUser.lastDiffRR = 0;
-    }
-
     if (interaction.customId === "update_target_rank") {
-        updatedUser.targetRank = Number(interaction.values[0]);
+        saveUndo(interaction.user.id, {
+            user,
+            subs: getSubs(interaction.user.id)
+        });
+
+        const updatedUser = {
+            ...user,
+            username: interaction.user.username,
+            targetRank: Number(interaction.values[0]),
+            updatedAt: new Date().toLocaleString("ja-JP")
+        };
+
+        const progress = calculateProgress(
+            updatedUser.currentRank,
+            updatedUser.rr,
+            updatedUser.targetRank
+        );
+
+        updatedUser.progress = progress.percent;
+
+        saveUser(updatedUser);
+
+        return sendUpdatedProfile(interaction, updatedUser);
     }
-
-    const progress = calculateProgress(
-        updatedUser.currentRank,
-        updatedUser.rr,
-        updatedUser.targetRank
-    );
-
-    updatedUser.username = interaction.user.username;
-    updatedUser.progress = progress.percent;
-    updatedUser.updatedAt = new Date().toLocaleString("ja-JP");
-
-    saveUser(updatedUser);
-
-    return sendUpdatedProfile(interaction, updatedUser);
 }
 
 async function handleUpdateModal(interaction) {
-    if (interaction.customId !== "update_comment_modal") return;
-
     const user = getUser(interaction.user.id);
 
     if (!user) {
@@ -336,23 +343,108 @@ async function handleUpdateModal(interaction) {
         });
     }
 
-    saveUndo(interaction.user.id, {
-        user,
-        subs: getSubs(interaction.user.id)
-    });
+    if (interaction.customId === "update_comment_modal") {
+        saveUndo(interaction.user.id, {
+            user,
+            subs: getSubs(interaction.user.id)
+        });
 
-    const comment = interaction.fields.getTextInputValue("comment") || "";
+        const comment = interaction.fields.getTextInputValue("comment") || "";
 
-    const updatedUser = {
-        ...user,
-        username: interaction.user.username,
-        comment,
-        updatedAt: new Date().toLocaleString("ja-JP")
-    };
+        const updatedUser = {
+            ...user,
+            username: interaction.user.username,
+            comment,
+            updatedAt: new Date().toLocaleString("ja-JP")
+        };
 
-    saveUser(updatedUser);
+        saveUser(updatedUser);
 
-    return sendUpdatedProfile(interaction, updatedUser, "✅ コメントを更新しました。");
+        return sendUpdatedProfile(interaction, updatedUser, "✅ コメントを更新しました。");
+    }
+
+    if (interaction.customId === "update_riot_modal") {
+        await interaction.deferReply({ ephemeral: true });
+
+        const riotName = interaction.fields.getTextInputValue("riot_name").trim();
+        const riotTag = interaction.fields.getTextInputValue("riot_tag").trim();
+        const region = "ap";
+
+        try {
+            const mmr = await getCurrentMMR(region, riotName, riotTag);
+            const latestMatch = await getLatestMatch(region, riotName, riotTag);
+            const rankId = getRankIdByName(mmr.rankName);
+
+            if (!rankId) {
+                return interaction.editReply({
+                    content:
+`⚠️ 現在ランクをBot内のランクに変換できませんでした。
+
+取得ランク：${mmr.rankName}
+
+Unratedの場合は、コンペ認定後にもう一度変更してください。`
+                });
+            }
+
+            saveUndo(interaction.user.id, {
+                user,
+                subs: getSubs(interaction.user.id)
+            });
+
+            const now = new Date().toLocaleString("ja-JP");
+            const progress = calculateProgress(rankId, mmr.rr, user.targetRank);
+
+            const updatedUser = {
+                ...user,
+                username: interaction.user.username,
+                riotName,
+                riotTag,
+                region,
+                currentRank: rankId,
+                rr: mmr.rr,
+                previousRank: user.currentRank,
+                previousRR: user.rr,
+                lastDiffRR: 0,
+                progress: progress.percent,
+                lastMatchId: latestMatch?.matchId || null,
+                lastMatchMap: latestMatch?.map || null,
+                lastMatchScore: latestMatch?.score || null,
+                lastMatchResult: null,
+                lastMatchRR: 0,
+                lastApiUpdate: now,
+                apiError: null,
+                updatedAt: now
+            };
+
+            saveUser(updatedUser);
+            await updatePublish(interaction.guild);
+
+            const subs = getSubs(interaction.user.id);
+            const embed = buildProfileEmbed(updatedUser, subs, interaction.user);
+
+            return interaction.editReply({
+                content:
+`✅ Riotアカウントを変更しました。
+
+🎮 Riot ID：**${riotName}#${riotTag}**
+📈 現在ランク：**${getRankText(rankId)}**
+⭐ 現在RR：**${mmr.rr}RR**`,
+                embeds: [embed]
+            });
+
+        } catch (error) {
+            return interaction.editReply({
+                content:
+`❌ Riotアカウント情報を取得できませんでした。
+
+入力したRiot IDとTagを確認してください。
+
+\`\`\`
+${error.message}
+\`\`\``
+            });
+        }
+    }
 }
 
 module.exports = {

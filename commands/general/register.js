@@ -1,12 +1,11 @@
 const {
     SlashCommandBuilder,
-    ActionRowBuilder,
-    StringSelectMenuBuilder,
-    ButtonBuilder,
-    ButtonStyle
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    ActionRowBuilder
 } = require("discord.js");
 
-const { RANKS } = require("../../utils/rankManager");
 const { getUser } = require("../../database/database");
 
 module.exports = {
@@ -22,52 +21,43 @@ module.exports = {
                 content:
 `⚠️ すでにプロフィールが登録されています。
 
-内容を変更したい場合は、今後追加する \`/update\` を使ってください。
-RRだけ変更する場合は \`/rr\` を使ってください。`,
+内容を変更したい場合は \`/update\` を使ってください。
+RRはRiot APIから自動更新されます。`,
                 ephemeral: true
             });
         }
 
-        const rankOptions = RANKS.map(rank => ({
-            label: rank.name,
-            value: String(rank.id),
-            emoji: rank.emoji
-        }));
+        const modal = new ModalBuilder()
+            .setCustomId("register_modal")
+            .setTitle("プロフィール登録");
 
-        interaction.client.registerCache.set(interaction.user.id, {
-            targetRank: null,
-            currentRank: null,
-            rr: 0,
-            comment: "",
-            subs: [],
-            pendingSubRank: null,
-            pendingSubAmount: null
-        });
+        const riotNameInput = new TextInputBuilder()
+            .setCustomId("riot_name")
+            .setLabel("Riot ID")
+            .setPlaceholder("例：ねこまる")
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short);
 
-        const targetMenu = new StringSelectMenuBuilder()
-            .setCustomId("register_target_rank")
-            .setPlaceholder("🎯 目標ランクを選択")
-            .addOptions(rankOptions);
+        const riotTagInput = new TextInputBuilder()
+            .setCustomId("riot_tag")
+            .setLabel("Tag")
+            .setPlaceholder("例：4545")
+            .setRequired(true)
+            .setStyle(TextInputStyle.Short);
 
-        const currentMenu = new StringSelectMenuBuilder()
-            .setCustomId("register_current_rank")
-            .setPlaceholder("📈 現在ランクを選択")
-            .addOptions(rankOptions);
+        const commentInput = new TextInputBuilder()
+            .setCustomId("comment")
+            .setLabel("コメント（任意）")
+            .setPlaceholder("例：夜なら対応できます")
+            .setRequired(false)
+            .setStyle(TextInputStyle.Paragraph);
 
-        const nextButton = new ButtonBuilder()
-            .setCustomId("register_next")
-            .setLabel("次へ")
-            .setEmoji("➡️")
-            .setStyle(ButtonStyle.Primary);
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(riotNameInput),
+            new ActionRowBuilder().addComponents(riotTagInput),
+            new ActionRowBuilder().addComponents(commentInput)
+        );
 
-        await interaction.reply({
-            content: "🎮 **プロフィール登録**\n\nまずは目標ランクと現在ランクを選択してください。",
-            components: [
-                new ActionRowBuilder().addComponents(targetMenu),
-                new ActionRowBuilder().addComponents(currentMenu),
-                new ActionRowBuilder().addComponents(nextButton)
-            ],
-            ephemeral: true
-        });
+        await interaction.showModal(modal);
     }
 };

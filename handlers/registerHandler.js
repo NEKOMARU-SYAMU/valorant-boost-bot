@@ -16,9 +16,10 @@ const {
 } = require("../database/database");
 
 const { buildProfileEmbed } = require("../embeds/profileEmbed");
-const { RANKS, getRankText } = require("../utils/rankManager");
+const { RANKS, getRankText, getRankIdByName } = require("../utils/rankManager");
 const { calculateProgress } = require("../utils/progressManager");
 const { updatePublish } = require("../utils/publishManager");
+const { getCurrentMMR, getLatestMatch } = require("../utils/valorantApi");
 
 function rankOptions() {
     return RANKS.map(rank => ({
@@ -76,17 +77,12 @@ async function handleRegisterSelectMenu(interaction, client) {
         client.registerCache.set(interaction.user.id, data);
 
         return interaction.reply({
-            content: `🎯 目標ランクを **${getRankText(data.targetRank)}** に設定しました。`,
-            ephemeral: true
-        });
-    }
+            content:
+`🎯 目標ランクを **${getRankText(data.targetRank)}** に設定しました。
 
-    if (interaction.customId === "register_current_rank") {
-        data.currentRank = Number(interaction.values[0]);
-        client.registerCache.set(interaction.user.id, data);
-
-        return interaction.reply({
-            content: `📈 現在ランクを **${getRankText(data.currentRank)}** に設定しました。`,
+次にサブアカウントを登録できます。
+必要ない場合は「登録完了」を押してください。`,
+            components: buildSubRegisterComponents(),
             ephemeral: true
         });
     }
@@ -120,40 +116,6 @@ async function handleRegisterButton(interaction, client) {
             content: "登録データが見つかりません。もう一度 `/register` を実行してください。",
             ephemeral: true
         });
-    }
-
-    if (interaction.customId === "register_next") {
-        if (!data.targetRank || !data.currentRank) {
-            return interaction.reply({
-                content: "⚠️ 目標ランクと現在ランクを両方選択してください。",
-                ephemeral: true
-            });
-        }
-
-        const modal = new ModalBuilder()
-            .setCustomId("register_modal")
-            .setTitle("プロフィール登録");
-
-        const rrInput = new TextInputBuilder()
-            .setCustomId("rr")
-            .setLabel("現在RR")
-            .setPlaceholder("0～99")
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short);
-
-        const commentInput = new TextInputBuilder()
-            .setCustomId("comment")
-            .setLabel("コメント（任意）")
-            .setPlaceholder("例：夜なら対応できます")
-            .setRequired(false)
-            .setStyle(TextInputStyle.Paragraph);
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(rrInput),
-            new ActionRowBuilder().addComponents(commentInput)
-        );
-
-        return interaction.showModal(modal);
     }
 
     if (interaction.customId === "register_sub_add") {
@@ -222,8 +184,14 @@ ${buildSubAccountText(data.subs)}
     }
 
     if (interaction.customId === "register_finish") {
-        const rr = Number(data.rr);
-        const progress = calculateProgress(data.currentRank, rr, data.targetRank);
+        if (!data.targetRank) {
+            return interaction.reply({
+                content: "⚠️ 目標ランクを選択してください。",
+                ephemeral: true
+            });
+        }
+
+        const progress = calculateProgress(data.currentRank, data.rr, data.targetRank);
         const now = new Date().toLocaleString("ja-JP");
 
         const userData = {
@@ -231,14 +199,25 @@ ${buildSubAccountText(data.subs)}
             username: interaction.user.username,
             targetRank: data.targetRank,
             currentRank: data.currentRank,
-            rr,
+            rr: data.rr,
             previousRank: data.currentRank,
-            previousRR: rr,
+            previousRR: data.rr,
             lastDiffRR: 0,
             progress: progress.percent,
             comment: data.comment || "",
             messageId: null,
-            updatedAt: now
+            updatedAt: now,
+
+            riotName: data.riotName,
+            riotTag: data.riotTag,
+            region: data.region || "ap",
+            lastMatchId: data.lastMatchId || null,
+            lastMatchResult: data.lastMatchResult || null,
+            lastMatchMap: data.lastMatchMap || null,
+            lastMatchScore: data.lastMatchScore || null,
+            lastMatchRR: 0,
+            lastApiUpdate: now,
+            apiError: null
         };
 
         saveUser(userData);
@@ -264,41 +243,80 @@ ${buildSubAccountText(data.subs)}
 }
 
 async function handleRegisterModal(interaction, client) {
-    const data = client.registerCache.get(interaction.user.id);
+    if (interaction.customId !== "register_modal") return;
 
-    if (!data) {
-        return interaction.reply({
-            content: "登録データが見つかりません。もう一度 `/register` を実行してください。",
-            ephemeral: true
+    await interaction.deferReply({ ephemeral: true });
+
+    const riotName = interaction.fields.getTextInputValue("riot_name").trim();
+    const riotTag = interaction.fields.getTextInputValue("riot_tag").trim();
+    const comment = interaction.fields.getTextInputValue("comment") || "";
+    const region = "ap";
+
+    try {
+        const mmr = await getCurrentMMR(region, riotName, riotTag);
+        const latestMatch = await getLatestMatch(region, riotName, riotTag);
+
+        const rankId = getRankIdByName(mmr.rankName);
+
+        if (!rankId) {
+            return interaction.editReply({
+                content:
+`⚠️ 現在ランクをBot内のランクに変換できませんでした。
+
+取得ランク：${mmr.rankName}
+
+Unratedの場合は、コンペ認定後にもう一度登録してください。`
+            });
+        }
+
+        client.registerCache.set(interaction.user.id, {
+            riotName,
+            riotTag,
+            region,
+            currentRank: rankId,
+            rr: mmr.rr,
+            targetRank: null,
+            comment,
+            subs: [],
+            pendingSubRank: null,
+            pendingSubAmount: null,
+            lastMatchId: latestMatch?.matchId || null,
+            lastMatchResult: null,
+            lastMatchMap: latestMatch?.map || null,
+            lastMatchScore: latestMatch?.score || null
+        });
+
+        const targetMenu = new StringSelectMenuBuilder()
+            .setCustomId("register_target_rank")
+            .setPlaceholder("🎯 目標ランクを選択")
+            .addOptions(rankOptions());
+
+        return interaction.editReply({
+            content:
+`✅ Riotアカウントを確認しました。
+
+🎮 Riot ID：**${riotName}#${riotTag}**
+📈 現在ランク：**${getRankText(rankId)}**
+⭐ 現在RR：**${mmr.rr}RR**
+
+次に目標ランクを選択してください。`,
+            components: [
+                new ActionRowBuilder().addComponents(targetMenu)
+            ]
+        });
+
+    } catch (error) {
+        return interaction.editReply({
+            content:
+`❌ Riotアカウント情報を取得できませんでした。
+
+入力したRiot IDとTagを確認してください。
+
+\`\`\`
+${error.message}
+\`\`\``
         });
     }
-
-    const rr = Number(interaction.fields.getTextInputValue("rr"));
-
-    if (Number.isNaN(rr) || rr < 0 || rr > 99) {
-        return interaction.reply({
-            content: "⚠️ RRは0〜99の数字で入力してください。",
-            ephemeral: true
-        });
-    }
-
-    data.rr = rr;
-    data.comment = interaction.fields.getTextInputValue("comment") || "";
-
-    client.registerCache.set(interaction.user.id, data);
-
-    return interaction.reply({
-        content:
-`✅ 基本情報を保存しました。
-
-📦 次にサブアカウントを登録できます。
-必要ない場合は「登録完了」を押してください。
-
-📦【現在のサブアカウント】
-${buildSubAccountText(data.subs)}`,
-        components: buildSubRegisterComponents(),
-        ephemeral: true
-    });
 }
 
 module.exports = {
