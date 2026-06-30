@@ -59,3 +59,20 @@ CREATE TABLE IF NOT EXISTS rrHistory (
     createdAtMs INTEGER NOT NULL
 )
 `).run();
+
+const addColumn = (sql) => {
+    try {
+        db.prepare(sql).run();
+    } catch (_) {}
+};
+
+addColumn(`ALTER TABLE users ADD COLUMN riotName TEXT`);
+addColumn(`ALTER TABLE users ADD COLUMN riotTag TEXT`);
+addColumn(`ALTER TABLE users ADD COLUMN region TEXT DEFAULT 'ap'`);
+addColumn(`ALTER TABLE users ADD COLUMN lastMatchId TEXT`);
+addColumn(`ALTER TABLE users ADD COLUMN lastMatchResult TEXT`);
+addColumn(`ALTER TABLE users ADD COLUMN lastMatchMap TEXT`);
+addColumn(`ALTER TABLE users ADD COLUMN lastMatchScore TEXT`);
+addColumn(`ALTER TABLE users ADD COLUMN lastMatchRR INTEGER DEFAULT 0`);
+addColumn(`ALTER TABLE users ADD COLUMN lastApiUpdate TEXT`);
+addColumn(`ALTER TABLE users ADD COLUMN apiError TEXT`);

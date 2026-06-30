@@ -43,8 +43,25 @@ function getRankText(id) {
   return rank ? `${rank.emoji} ${rank.name}` : "不明";
 }
 
+function getRankIdByName(name) {
+  if (!name) return null;
+
+  const normalized = String(name)
+    .replace(/\s+/g, "")
+    .replace("１", "1")
+    .replace("２", "2")
+    .replace("３", "3");
+
+  const rank = RANKS.find(rank =>
+    rank.name.replace(/\s+/g, "") === normalized
+  );
+
+  return rank ? rank.id : null;
+}
+
 module.exports = {
   RANKS,
   getRankInfo,
-  getRankText
+  getRankText,
+  getRankIdByName
 };
