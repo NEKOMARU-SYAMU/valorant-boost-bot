@@ -111,6 +111,9 @@ async function handleRegisterButton(interaction, client) {
         });
     }
 
+    const targetUserId = data.targetUserId || interaction.user.id;
+    const targetUsername = data.targetUsername || interaction.user.username;
+
     if (interaction.customId === "register_sub_add") {
         const rankMenu = new StringSelectMenuBuilder()
             .setCustomId("register_sub_rank")
@@ -188,8 +191,8 @@ ${buildSubAccountText(data.subs)}
         const now = new Date().toLocaleString("ja-JP");
 
         const userData = {
-            userId: interaction.user.id,
-            username: interaction.user.username,
+            userId: targetUserId,
+            username: targetUsername,
             targetRank: data.targetRank,
             currentRank: data.currentRank,
             rr: data.rr,
@@ -215,21 +218,22 @@ ${buildSubAccountText(data.subs)}
         };
 
         saveUser(userData);
-        clearSubs(interaction.user.id);
+        clearSubs(targetUserId);
 
         for (const sub of data.subs) {
-            addSub(interaction.user.id, sub.rankId, sub.amount);
+            addSub(targetUserId, sub.rankId, sub.amount);
         }
 
         await updatePublish(interaction.guild);
 
         client.registerCache.delete(interaction.user.id);
 
-        const savedSubs = getSubs(interaction.user.id);
-        const embed = buildProfileEmbed(userData, savedSubs, interaction.user);
+        const savedSubs = getSubs(targetUserId);
+        const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => interaction.user);
+        const embed = buildProfileEmbed(userData, savedSubs, targetUser);
 
         return interaction.reply({
-            content: "✅ **プロフィール登録が完了しました！**",
+            content: `✅ **プロフィール登録が完了しました！**\n対象：<@${targetUserId}>`,
             embeds: [embed],
             ephemeral: true
         });
@@ -240,6 +244,10 @@ async function handleRegisterModal(interaction, client) {
     if (interaction.customId !== "register_modal") return;
 
     await interaction.deferReply({ ephemeral: true });
+
+    const baseData = client.registerCache.get(interaction.user.id) || {};
+    const targetUserId = baseData.targetUserId || interaction.user.id;
+    const targetUsername = baseData.targetUsername || interaction.user.username;
 
     const riotName = interaction.fields.getTextInputValue("riot_name").trim();
     const riotTag = interaction.fields.getTextInputValue("riot_tag").trim();
@@ -261,6 +269,8 @@ async function handleRegisterModal(interaction, client) {
         }
 
         client.registerCache.set(interaction.user.id, {
+            targetUserId,
+            targetUsername,
             riotName,
             riotTag,
             region,
@@ -287,6 +297,7 @@ async function handleRegisterModal(interaction, client) {
             content:
 `✅ Riotアカウントを確認しました。
 
+対象：<@${targetUserId}>
 🎮 Riot ID：**${riotName}#${riotTag}**
 📈 現在ランク：**${getRankText(rankId)}**
 ⭐ 現在RR：**${rr}RR**
