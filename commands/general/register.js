@@ -3,7 +3,8 @@ const {
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
-    ActionRowBuilder
+    ActionRowBuilder,
+    PermissionFlagsBits
 } = require("discord.js");
 
 const { getUser } = require("../../database/database");
@@ -11,10 +12,29 @@ const { getUser } = require("../../database/database");
 module.exports = {
     data: new SlashCommandBuilder()
         .setName("register")
-        .setDescription("プロフィールを登録します"),
+        .setDescription("プロフィールを登録します")
+        .addUserOption(option =>
+            option
+                .setName("user")
+                .setDescription("管理者用：登録する対象ユーザー")
+                .setRequired(false)
+        ),
 
     async execute(interaction) {
-        const existingUser = getUser(interaction.user.id);
+        const targetUser = interaction.options.getUser("user") || interaction.user;
+
+        if (targetUser.id !== interaction.user.id) {
+            const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+
+            if (!isAdmin) {
+                return interaction.reply({
+                    content: "⚠️ 他人のプロフィールを登録できるのは管理者のみです。",
+                    ephemeral: true
+                });
+            }
+        }
+
+        const existingUser = getUser(targetUser.id);
 
         if (existingUser) {
             return interaction.reply({
@@ -26,6 +46,11 @@ RRはRiot APIから自動更新されます。`,
                 ephemeral: true
             });
         }
+
+        interaction.client.registerCache.set(interaction.user.id, {
+            targetUserId: targetUser.id,
+            targetUsername: targetUser.username
+        });
 
         const modal = new ModalBuilder()
             .setCustomId("register_modal")
