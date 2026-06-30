@@ -1,89 +1,103 @@
-const {
-    SlashCommandBuilder,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle,
-    ActionRowBuilder,
-    PermissionFlagsBits
-} = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
-const { getUser } = require("../database/database");
+const {
+    getAllUsers,
+    getSubs
+} = require("../database/database");
+
+const { getRankText } = require("../utils/rankManager");
+const { calculateProgress, makeBar } = require("../utils/progressManager");
+
+function formatLastMatch(user) {
+    if (!user.lastMatchId) return "なし";
+
+    const result = user.lastMatchResult || "未取得";
+    const resultIcon =
+        result.toLowerCase().includes("victory") || result.includes("勝")
+            ? "🟢"
+            : result.toLowerCase().includes("defeat") || result.includes("負")
+                ? "🔴"
+                : "⚪";
+
+    const rr = Number(user.lastMatchRR || 0);
+    const rrText = rr > 0 ? `+${rr}RR` : rr < 0 ? `${rr}RR` : "±0RR";
+
+    return `${resultIcon} ${result}
+🗺️ ${user.lastMatchMap || "不明"}
+⭐ ${rrText}`;
+}
+
+function formatSubs(userId) {
+    const subs = getSubs(userId);
+
+    if (!subs.length) return "なし";
+
+    const total = subs.reduce((sum, sub) => sum + sub.amount, 0);
+
+    const text = subs
+        .map(sub => `${getRankText(sub.rankId)} ×${sub.amount}`)
+        .join("\n");
+
+    return `${text}
+（合計${total}個）`;
+}
+
+function buildMemberListEmbed() {
+    const users = getAllUsers();
+
+    const text = users.length
+        ? users.map((user, index) => {
+            const medal =
+                index === 0 ? "🥇" :
+                index === 1 ? "🥈" :
+                index === 2 ? "🥉" :
+                `**${index + 1}.**`;
+
+            const progress = calculateProgress(
+                user.currentRank,
+                user.rr,
+                user.targetRank
+            );
+
+            const riotId = user.riotName && user.riotTag
+                ? `${user.riotName}#${user.riotTag}`
+                : "未登録";
+
+            const unratedText = user.isUnrated
+                ? "\n⚠️ コンペ未認定（アイアン1・0RRで仮登録）"
+                : "";
+
+            return `${medal} <@${user.userId}>
+🎮 ${riotId}
+
+📈 ${getRankText(user.currentRank)} ${user.rr}RR${unratedText}
+🎯 ${getRankText(user.targetRank)}
+
+${makeBar(progress.percent)} ${progress.percent}%
+
+📌 あと${progress.remainingRR}RR
+
+⚔️ 最新試合
+${formatLastMatch(user)}
+
+📦 サブ垢
+${formatSubs(user.userId)}
+
+🕒 ${user.lastApiUpdate || user.updatedAt || "不明"} 更新
+────────────────────`;
+        }).join("\n")
+        : "まだ登録されているメンバーはいません。";
+
+    return new EmbedBuilder()
+        .setColor(0xE63946)
+        .setTitle("🏆 BOOST MEMBER LIST")
+        .setDescription(text)
+        .setFooter({
+            text: `👥 登録メンバー：${users.length}人`
+        })
+        .setTimestamp();
+}
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName("register")
-        .setDescription("プロフィールを登録します")
-        .addUserOption(option =>
-            option
-                .setName("user")
-                .setDescription("管理者用：登録する対象ユーザー")
-                .setRequired(false)
-        ),
-
-    async execute(interaction) {
-        const targetUser = interaction.options.getUser("user") || interaction.user;
-
-        if (targetUser.id !== interaction.user.id) {
-            const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-
-            if (!isAdmin) {
-                return interaction.reply({
-                    content: "⚠️ 他人のプロフィールを登録できるのは管理者のみです。",
-                    ephemeral: true
-                });
-            }
-        }
-
-        const existingUser = getUser(targetUser.id);
-
-        if (existingUser) {
-            return interaction.reply({
-                content:
-`⚠️ すでにプロフィールが登録されています。
-
-内容を変更したい場合は \`/update\` を使ってください。
-RRはRiot APIから自動更新されます。`,
-                ephemeral: true
-            });
-        }
-
-        interaction.client.registerCache.set(interaction.user.id, {
-            targetUserId: targetUser.id,
-            targetUsername: targetUser.username,
-            targetAvatar: targetUser.displayAvatarURL({ dynamic: true })
-        });
-
-        const modal = new ModalBuilder()
-            .setCustomId("register_modal")
-            .setTitle("プロフィール登録");
-
-        const riotNameInput = new TextInputBuilder()
-            .setCustomId("riot_name")
-            .setLabel("Riot ID")
-            .setPlaceholder("例：ねこまる")
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short);
-
-        const riotTagInput = new TextInputBuilder()
-            .setCustomId("riot_tag")
-            .setLabel("Tag")
-            .setPlaceholder("例：4545")
-            .setRequired(true)
-            .setStyle(TextInputStyle.Short);
-
-        const commentInput = new TextInputBuilder()
-            .setCustomId("comment")
-            .setLabel("コメント（任意）")
-            .setPlaceholder("例：夜なら対応できます")
-            .setRequired(false)
-            .setStyle(TextInputStyle.Paragraph);
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(riotNameInput),
-            new ActionRowBuilder().addComponents(riotTagInput),
-            new ActionRowBuilder().addComponents(commentInput)
-        );
-
-        await interaction.showModal(modal);
-    }
+    buildMemberListEmbed
 };
