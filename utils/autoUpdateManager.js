@@ -90,6 +90,7 @@ async function updateOneUser(client, guild, user) {
             ...user,
             currentRank: rankId,
             rr: mmr.rr,
+            isUnrated: 0,
             previousRank: user.currentRank,
             previousRR: user.rr,
             lastDiffRR: diffRR,

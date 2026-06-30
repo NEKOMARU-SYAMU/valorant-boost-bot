@@ -98,6 +98,14 @@ ${progress.percent}%
             text: `最終更新：${user.updatedAt || "不明"} / API更新：${user.lastApiUpdate || "未取得"}`
         });
 
+    if (user.isUnrated) {
+        embed.addFields({
+            name: "⚠️【コンペ未認定（仮登録）】",
+            value: "このアカウントは現在コンペティティブ未認定（Unrated）のため、**アイアン1・0RR**として仮登録されています。\n認定戦が終了すると、Botが自動で実際のランク・RRへ更新します。",
+            inline: false
+        });
+    }
+
     if (user.comment && user.comment.trim() !== "") {
         embed.addFields({
             name: "💬【コメント】",

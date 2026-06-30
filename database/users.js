@@ -9,7 +9,7 @@ function saveUser(user) {
             progress, comment, messageId, updatedAt,
             riotName, riotTag, region, lastMatchId,
             lastMatchResult, lastMatchMap, lastMatchScore,
-            lastMatchRR, lastApiUpdate, apiError
+            lastMatchRR, lastApiUpdate, apiError, isUnrated
         )
         VALUES (
             @userId, @username, @targetRank, @currentRank, @rr,
@@ -17,7 +17,7 @@ function saveUser(user) {
             @progress, @comment, @messageId, @updatedAt,
             @riotName, @riotTag, @region, @lastMatchId,
             @lastMatchResult, @lastMatchMap, @lastMatchScore,
-            @lastMatchRR, @lastApiUpdate, @apiError
+            @lastMatchRR, @lastApiUpdate, @apiError, @isUnrated
         )
     `).run({
         ...user,
@@ -38,7 +38,8 @@ function saveUser(user) {
         lastMatchScore: user.lastMatchScore ?? null,
         lastMatchRR: user.lastMatchRR ?? 0,
         lastApiUpdate: user.lastApiUpdate ?? null,
-        apiError: user.apiError ?? null
+        apiError: user.apiError ?? null,
+        isUnrated: user.isUnrated ? 1 : 0
     });
 }
 

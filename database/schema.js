@@ -76,3 +76,4 @@ addColumn(`ALTER TABLE users ADD COLUMN lastMatchScore TEXT`);
 addColumn(`ALTER TABLE users ADD COLUMN lastMatchRR INTEGER DEFAULT 0`);
 addColumn(`ALTER TABLE users ADD COLUMN lastApiUpdate TEXT`);
 addColumn(`ALTER TABLE users ADD COLUMN apiError TEXT`);
+addColumn(`ALTER TABLE users ADD COLUMN isUnrated INTEGER DEFAULT 0`);
