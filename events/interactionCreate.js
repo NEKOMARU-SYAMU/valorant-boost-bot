@@ -16,6 +16,11 @@ const { handleRRModal } = require("../handlers/rrHandler");
 const { handleVCButton } = require("../handlers/vcHandler");
 const { handleDeleteModal } = require("../handlers/deleteHandler");
 
+const {
+    buildHelpEmbed,
+    buildButtons
+} = require("../commands/general/help");
+
 module.exports = {
     name: Events.InteractionCreate,
 
@@ -44,6 +49,27 @@ module.exports = {
             }
 
             if (interaction.isButton()) {
+                if (interaction.customId.startsWith("help_")) {
+                    const parts = interaction.customId.split("_");
+                    const action = parts[1];
+                    const currentPage = Number(parts[2]);
+
+                    let nextPage = currentPage;
+
+                    if (action === "prev") nextPage--;
+                    if (action === "next") nextPage++;
+
+                    if (nextPage < 1) nextPage = 1;
+                    if (nextPage > 3) nextPage = 3;
+
+                    await interaction.update({
+                        embeds: [buildHelpEmbed(nextPage)],
+                        components: buildButtons(nextPage)
+                    });
+
+                    return;
+                }
+
                 if (interaction.customId.startsWith("vc_")) {
                     await handleVCButton(interaction);
                     return;
