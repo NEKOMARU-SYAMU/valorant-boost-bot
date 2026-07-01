@@ -18,10 +18,34 @@ const {
 } = require("../embeds/notificationEmbed");
 
 let isRunning = false;
-
 let lastUpdateTime = Date.now();
 
 const UPDATE_INTERVAL = 5; // 分
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(error) {
+    return (
+        error?.response?.status === 429 ||
+        error?.status === 429 ||
+        String(error?.message || "").includes("429")
+    );
+}
+
+async function retryOnRateLimit(fn, retries = 1) {
+    try {
+        return await fn();
+    } catch (error) {
+        if (isRateLimitError(error) && retries > 0) {
+            await sleep(5000);
+            return retryOnRateLimit(fn, retries - 1);
+        }
+
+        throw error;
+    }
+}
 
 function calcDiffRR(oldRank, oldRR, newRank, newRR) {
     return ((newRank - oldRank) * 100 + newRR) - oldRR;
@@ -81,7 +105,10 @@ async function updateOneUser(client, guild, user) {
 
     try {
         const region = user.region || "ap";
-        const latestMatch = await getLatestMatch(region, user.riotName, user.riotTag);
+
+        const latestMatch = await retryOnRateLimit(() =>
+            getLatestMatch(region, user.riotName, user.riotTag)
+        );
 
         if (!latestMatch?.matchId) {
             return { checked: true, updated: false, skipped: true };
@@ -91,7 +118,12 @@ async function updateOneUser(client, guild, user) {
             return { checked: true, updated: false, skipped: true };
         }
 
-        const mmr = await getCurrentMMR(region, user.riotName, user.riotTag);
+        await sleep(300 + Math.random() * 200);
+
+        const mmr = await retryOnRateLimit(() =>
+            getCurrentMMR(region, user.riotName, user.riotTag)
+        );
+
         const rankId = getRankIdByName(mmr.rankName);
 
         if (!rankId) {
@@ -144,6 +176,7 @@ async function updateOneUser(client, guild, user) {
         await sendNotifications(guild, user, updatedUser, diffRR);
 
         return { checked: true, updated: true };
+
     } catch (error) {
         const failedUser = {
             ...user,
@@ -191,14 +224,11 @@ async function runAutoUpdate(client, guild, options = {}) {
             if (result.failed) failed++;
             if (result.skipped) skipped++;
 
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // APIレート制限対策
+            await sleep(300 + Math.random() * 200);
         }
 
         if (updated > 0) {
-            await updatePublish(guild);
-        }
-
-                if (updated > 0) {
             await updatePublish(guild);
         }
 
@@ -211,6 +241,7 @@ async function runAutoUpdate(client, guild, options = {}) {
             skipped,
             running: false
         };
+
     } finally {
         isRunning = false;
     }
@@ -224,17 +255,14 @@ function startAutoUpdate(client) {
             }
         }, UPDATE_INTERVAL * 60 * 1000);
 
-console.log(`Auto RR update started: every ${UPDATE_INTERVAL} minutes`);
+        console.log(`Auto RR update started: every ${UPDATE_INTERVAL} minutes`);
     });
 }
 
 function getRemainingTime() {
-
     const next = lastUpdateTime + UPDATE_INTERVAL * 60 * 1000;
-
     return Math.max(0, next - Date.now());
-
-} 
+}
 
 module.exports = {
     startAutoUpdate,
