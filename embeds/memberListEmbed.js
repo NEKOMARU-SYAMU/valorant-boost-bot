@@ -43,7 +43,9 @@ ${rrText}`;
     }
 
     const map = user.lastMatchMap || "Unknown";
-    const score = user.lastMatchScore ? `（${user.lastMatchScore}）` : "";
+    const score = user.lastMatchScore
+        ? `（${user.lastMatchScore}）`
+        : "";
 
     return `${resultIcon} ${result}
 ${map}${score}
@@ -77,11 +79,12 @@ function buildMemberListEmbed() {
 
     const text = users.length
         ? users.map((user, index) => {
+
             const medal =
                 index === 0 ? "🥇" :
                 index === 1 ? "🥈" :
                 index === 2 ? "🥉" :
-                `**${index + 1}.**`;
+                `${index + 1}.`;
 
             const progress = calculateProgress(
                 user.currentRank,
@@ -89,9 +92,10 @@ function buildMemberListEmbed() {
                 user.targetRank
             );
 
-            const riotId = user.riotName && user.riotTag
-                ? `${user.riotName}#${user.riotTag}`
-                : "未登録";
+            const riotId =
+                user.riotName && user.riotTag
+                    ? `${user.riotName}#${user.riotTag}`
+                    : "未登録";
 
             const unratedText = user.isUnrated
                 ? "\n⚠️ コンペ未認定（仮登録）"
@@ -99,11 +103,16 @@ function buildMemberListEmbed() {
 
             const subs = formatSubs(user.userId);
 
+            const separator =
+                index === users.length - 1
+                    ? ""
+                    : "\n────────────────────";
+
             return `${medal} <@${user.userId}>
-${riotId}
+Riot ID：\`${riotId}\`
 
 • 現在
-${getRankText(user.currentRank)}　${user.rr}RR${unratedText}
+${getRankText(user.currentRank)} ${user.rr}RR${unratedText}
 
 • 目標
 ${getRankText(user.targetRank)}
@@ -118,8 +127,8 @@ ${formatLastMatch(user)}
 • サブ垢（合計${subs.total}個）
 ${subs.text}
 
-最終更新：${formatDate(user.lastApiUpdate || user.updatedAt)}
-────────────────────`;
+最終更新：${formatDate(user.lastApiUpdate || user.updatedAt)}${separator}`;
+
         }).join("\n")
         : "まだ登録されているメンバーはいません。";
 
