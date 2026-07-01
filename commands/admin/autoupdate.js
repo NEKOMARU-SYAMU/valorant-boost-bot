@@ -11,21 +11,26 @@ module.exports = {
 
     data: new SlashCommandBuilder()
         .setName("autoupdate")
-        .setDescription("次回自動更新までの残り時間を表示します")
+        .setDescription("自動更新状況を表示します")
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
 
         const remain = getRemainingTime();
 
-        const minutes = Math.floor(remain / 60000);
-        const seconds = Math.floor((remain % 60000) / 1000);
+        const totalSeconds = Math.ceil(remain / 1000);
+
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
 
         await interaction.reply({
             content:
-`⏰ 次回自動更新まで
+`⏰ 自動更新
 
-${minutes}分${seconds}秒`,
+次回更新まで
+${minutes}分${seconds}秒
+
+更新間隔：5分`,
             ephemeral: true
         });
 
