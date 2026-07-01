@@ -16,6 +16,7 @@ const { handleRRModal } = require("../handlers/rrHandler");
 const { handleVCButton } = require("../handlers/vcHandler");
 const { handleDeleteModal } = require("../handlers/deleteHandler");
 const { handleSetInterval } = require("../handlers/setIntervalHandler");
+const { showRegisterModal } = require("../utils/registerModal");
 
 const {
     buildHelpEmbed,
@@ -55,6 +56,29 @@ module.exports = {
             }
 
             if (interaction.isButton()) {
+                // 登録パネル
+if (interaction.customId === "register_panel") {
+
+    const existingUser = require("../database/database").getUser(interaction.user.id);
+
+    if (existingUser) {
+        return interaction.reply({
+            content:
+`⚠️ すでにプロフィールが登録されています。
+
+内容を変更したい場合は \`/update\` を使ってください。`,
+            ephemeral: true
+        });
+    }
+
+    interaction.client.registerCache.set(interaction.user.id, {
+        targetUserId: interaction.user.id,
+        targetUsername: interaction.user.username
+    });
+
+    await showRegisterModal(interaction);
+    return;
+}
                 if (interaction.customId.startsWith("help_")) {
                     const parts = interaction.customId.split("_");
                     const action = parts[1];
