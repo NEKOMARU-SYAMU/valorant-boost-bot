@@ -8,10 +8,24 @@ const {
 const { getRankText } = require("../utils/rankManager");
 const { calculateProgress, makeBar } = require("../utils/progressManager");
 
-function formatLastMatch(user) {
-    if (!user.lastMatchId) return "なし";
+function formatDate(value) {
+    if (!value) return "不明";
 
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleString("ja-JP", {
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+}
+
+function formatLastMatch(user) {
     const result = user.lastMatchResult || "未取得";
+
     const resultIcon =
         result.toLowerCase().includes("victory") || result.includes("勝")
             ? "🟢"
@@ -22,15 +36,29 @@ function formatLastMatch(user) {
     const rr = Number(user.lastMatchRR || 0);
     const rrText = rr > 0 ? `+${rr}RR` : rr < 0 ? `${rr}RR` : "±0RR";
 
+    if (!user.lastMatchId || result === "未取得") {
+        return `${resultIcon} 未取得
+Unknown
+${rrText}`;
+    }
+
+    const map = user.lastMatchMap || "Unknown";
+    const score = user.lastMatchScore ? `（${user.lastMatchScore}）` : "";
+
     return `${resultIcon} ${result}
-🗺️ ${user.lastMatchMap || "不明"}
-⭐ ${rrText}`;
+${map}${score}
+${rrText}`;
 }
 
 function formatSubs(userId) {
     const subs = getSubs(userId);
 
-    if (!subs.length) return "なし";
+    if (!subs.length) {
+        return {
+            total: 0,
+            text: "なし"
+        };
+    }
 
     const total = subs.reduce((sum, sub) => sum + sub.amount, 0);
 
@@ -38,8 +66,10 @@ function formatSubs(userId) {
         .map(sub => `${getRankText(sub.rankId)} ×${sub.amount}`)
         .join("\n");
 
-    return `${text}
-（合計${total}個）`;
+    return {
+        total,
+        text
+    };
 }
 
 function buildMemberListEmbed() {
@@ -64,36 +94,41 @@ function buildMemberListEmbed() {
                 : "未登録";
 
             const unratedText = user.isUnrated
-                ? "\n⚠️ コンペ未認定（アイアン1・0RRで仮登録）"
+                ? "\n⚠️ コンペ未認定（仮登録）"
                 : "";
 
+            const subs = formatSubs(user.userId);
+
             return `${medal} <@${user.userId}>
-🎮 ${riotId}
+${riotId}
 
-📈 ${getRankText(user.currentRank)} ${user.rr}RR${unratedText}
-🎯 ${getRankText(user.targetRank)}
+• 現在
+${getRankText(user.currentRank)}　${user.rr}RR${unratedText}
 
+• 目標
+${getRankText(user.targetRank)}
+
+• 進捗
 ${makeBar(progress.percent)} ${progress.percent}%
+あと${progress.remainingRR}RR
 
-📌 あと${progress.remainingRR}RR
-
-⚔️ 最新試合
+• 最新試合
 ${formatLastMatch(user)}
 
-📦 サブ垢
-${formatSubs(user.userId)}
+• サブ垢（合計${subs.total}個）
+${subs.text}
 
-🕒 ${user.lastApiUpdate || user.updatedAt || "不明"} 更新
+最終更新：${formatDate(user.lastApiUpdate || user.updatedAt)}
 ────────────────────`;
         }).join("\n")
         : "まだ登録されているメンバーはいません。";
 
     return new EmbedBuilder()
         .setColor(0xE63946)
-        .setTitle("🏆 BOOST MEMBER LIST")
+        .setTitle("🏆 VALORANT MEMBER LIST")
         .setDescription(text)
         .setFooter({
-            text: `👥 登録メンバー：${users.length}人`
+            text: `登録メンバー：${users.length}人`
         })
         .setTimestamp();
 }
