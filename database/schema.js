@@ -38,13 +38,13 @@ CREATE TABLE IF NOT EXISTS settings (
     guildId TEXT PRIMARY KEY,
     publishChannel TEXT,
     publishMessage TEXT,
-    rankUpChannel TEXT
+    matchResultChannel TEXT,
+    rankUpChannel TEXT,
+    rankDownChannel TEXT,
+    targetAchievedChannel TEXT,
+    updateInterval INTEGER DEFAULT 60
 )
 `).run();
-
-try {
-    db.prepare(`ALTER TABLE settings ADD COLUMN rankUpChannel TEXT`).run();
-} catch (_) {}
 
 db.prepare(`
 CREATE TABLE IF NOT EXISTS rrHistory (
@@ -77,6 +77,11 @@ addColumn(`ALTER TABLE users ADD COLUMN lastMatchRR INTEGER DEFAULT 0`);
 addColumn(`ALTER TABLE users ADD COLUMN lastApiUpdate TEXT`);
 addColumn(`ALTER TABLE users ADD COLUMN apiError TEXT`);
 addColumn(`ALTER TABLE users ADD COLUMN isUnrated INTEGER DEFAULT 0`);
+
+addColumn(`ALTER TABLE settings ADD COLUMN publishChannel TEXT`);
+addColumn(`ALTER TABLE settings ADD COLUMN publishMessage TEXT`);
 addColumn(`ALTER TABLE settings ADD COLUMN matchResultChannel TEXT`);
+addColumn(`ALTER TABLE settings ADD COLUMN rankUpChannel TEXT`);
 addColumn(`ALTER TABLE settings ADD COLUMN rankDownChannel TEXT`);
 addColumn(`ALTER TABLE settings ADD COLUMN targetAchievedChannel TEXT`);
+addColumn(`ALTER TABLE settings ADD COLUMN updateInterval INTEGER DEFAULT 60`);

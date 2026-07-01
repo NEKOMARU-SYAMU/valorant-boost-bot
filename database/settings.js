@@ -19,7 +19,8 @@ function saveSettings(guildId, data) {
             rankUpChannel,
             matchResultChannel,
             rankDownChannel,
-            targetAchievedChannel
+            targetAchievedChannel,
+            updateInterval
         )
         VALUES (
             @guildId,
@@ -28,20 +29,48 @@ function saveSettings(guildId, data) {
             @rankUpChannel,
             @matchResultChannel,
             @rankDownChannel,
-            @targetAchievedChannel
+            @targetAchievedChannel,
+            @updateInterval
         )
     `).run({
         guildId,
-        publishChannel: data.publishChannel ?? current?.publishChannel ?? null,
-        publishMessage: data.publishMessage ?? current?.publishMessage ?? null,
-        rankUpChannel: data.rankUpChannel ?? current?.rankUpChannel ?? null,
-        matchResultChannel: data.matchResultChannel ?? current?.matchResultChannel ?? null,
-        rankDownChannel: data.rankDownChannel ?? current?.rankDownChannel ?? null,
-        targetAchievedChannel: data.targetAchievedChannel ?? current?.targetAchievedChannel ?? null
+
+        publishChannel:
+            data.publishChannel ?? current?.publishChannel ?? null,
+
+        publishMessage:
+            data.publishMessage ?? current?.publishMessage ?? null,
+
+        rankUpChannel:
+            data.rankUpChannel ?? current?.rankUpChannel ?? null,
+
+        matchResultChannel:
+            data.matchResultChannel ?? current?.matchResultChannel ?? null,
+
+        rankDownChannel:
+            data.rankDownChannel ?? current?.rankDownChannel ?? null,
+
+        targetAchievedChannel:
+            data.targetAchievedChannel ?? current?.targetAchievedChannel ?? null,
+
+        updateInterval:
+            data.updateInterval ?? current?.updateInterval ?? 60
+    });
+}
+
+function getUpdateInterval(guildId) {
+    return getSettings(guildId)?.updateInterval ?? 60;
+}
+
+function setUpdateInterval(guildId, minutes) {
+    saveSettings(guildId, {
+        updateInterval: minutes
     });
 }
 
 module.exports = {
+    getSettings,
     saveSettings,
-    getSettings
+    getUpdateInterval,
+    setUpdateInterval
 };

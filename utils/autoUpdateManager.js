@@ -212,9 +212,9 @@ function startAutoUpdate(client) {
             for (const guild of client.guilds.cache.values()) {
                 await runAutoUpdate(client, guild).catch(console.error);
             }
-        }, 60 * 60 * 1000);
+        }, 5 * 60 * 1000);
 
-        console.log("Auto RR update started: every 1 hour");
+        console.log("Auto RR update started: every 5 minutes");
     });
 }
 

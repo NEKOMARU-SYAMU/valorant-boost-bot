@@ -15,6 +15,7 @@ const {
 const { handleRRModal } = require("../handlers/rrHandler");
 const { handleVCButton } = require("../handlers/vcHandler");
 const { handleDeleteModal } = require("../handlers/deleteHandler");
+const { handleSetInterval } = require("../handlers/setIntervalHandler");
 
 const {
     buildHelpEmbed,
@@ -35,6 +36,11 @@ module.exports = {
             }
 
             if (interaction.isStringSelectMenu()) {
+                if (interaction.customId === "setinterval_select") {
+                    await handleSetInterval(interaction);
+                    return;
+                }
+
                 if (interaction.customId.startsWith("register_")) {
                     await handleRegisterSelectMenu(interaction, client);
                     return;
