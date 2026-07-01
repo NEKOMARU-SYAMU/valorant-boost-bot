@@ -47,15 +47,21 @@ function buildHelpEmbed(page) {
                     inline: false
                 },
                 {
-                    name: "🔔 /setnotify",
-                    value:
-"通知チャンネルを種類ごとに設定します。\n\n設定可能：試合結果 / ランクアップ / ランクダウン / 目標達成",
-                    inline: false
-                },
-                {
                     name: "🔄 /forceupdate",
                     value:
 "登録者全員を今すぐ手動更新します。\n試合終了を確認し、ランク・RR・一覧・通知を更新します。",
+                    inline: false
+                },
+                {
+                    name: "⏰ /autoupdate",
+                    value:
+"次回自動更新までの残り時間を表示します。\n\n例：2分34秒",
+                    inline: false
+                },
+                {
+                    name: "🔔 /setnotify",
+                    value:
+"通知チャンネルを種類ごとに設定します。\n\n設定可能：試合結果 / ランクアップ / ランクダウン / 目標達成",
                     inline: false
                 },
                 {
@@ -75,7 +81,7 @@ function buildHelpEmbed(page) {
             {
                 name: "⚔️ 試合終了検知",
                 value:
-"登録後は1時間ごとに最新試合を確認します。\n新しい試合を検知した場合のみ、ランク・RRを更新します。",
+"登録後は5分ごとに最新試合を確認します。\n新しい試合を検知した場合のみ、ランク・RRを更新します。",
                 inline: false
             },
             {

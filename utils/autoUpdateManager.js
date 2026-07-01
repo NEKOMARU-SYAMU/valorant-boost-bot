@@ -19,6 +19,10 @@ const {
 
 let isRunning = false;
 
+let lastUpdateTime = Date.now();
+
+const UPDATE_INTERVAL = 5; // 分
+
 function calcDiffRR(oldRank, oldRR, newRank, newRR) {
     return ((newRank - oldRank) * 100 + newRR) - oldRR;
 }
@@ -194,6 +198,12 @@ async function runAutoUpdate(client, guild, options = {}) {
             await updatePublish(guild);
         }
 
+                if (updated > 0) {
+            await updatePublish(guild);
+        }
+
+        lastUpdateTime = Date.now();
+
         return {
             checked,
             updated,
@@ -212,13 +222,22 @@ function startAutoUpdate(client) {
             for (const guild of client.guilds.cache.values()) {
                 await runAutoUpdate(client, guild).catch(console.error);
             }
-        }, 5 * 60 * 1000);
+        }, UPDATE_INTERVAL * 60 * 1000);
 
-        console.log("Auto RR update started: every 5 minutes");
+console.log(`Auto RR update started: every ${UPDATE_INTERVAL} minutes`);
     });
 }
 
+function getRemainingTime() {
+
+    const next = lastUpdateTime + UPDATE_INTERVAL * 60 * 1000;
+
+    return Math.max(0, next - Date.now());
+
+} 
+
 module.exports = {
     startAutoUpdate,
-    runAutoUpdate
+    runAutoUpdate,
+    getRemainingTime
 };
